@@ -31,8 +31,8 @@ const NoUpdateBoundary: React.FC<{ visible: boolean; children: React.ReactElemen
   (prev, next) => !(prev.visible || next.visible),
 );
 
-const panelVisible = { zIndex: 1, display: 'block' };
-const panelInVisible = { zIndex: -1, display: 'none' };
+const panelVisible = { display: 'block' };
+const panelInVisible = { display: 'none' };
 
 export interface IBaseTabPanelView {
   PanelView: React.FC<{ component: ComponentRegistryInfo; side: string; titleMenu: IMenu }>;
@@ -57,7 +57,7 @@ export const BaseTabPanelView: React.FC<IBaseTabPanelView> = observer(({ PanelVi
     <div
       id={id}
       className={clsx(styles.tab_panel, {
-        [styles.tab_panel_hidden]: !currentContainerId || currentContainerId === '',
+        [styles.tab_panel_hidden]: !currentContainerId,
       })}
     >
       {tabbarService.visibleContainers.map((component) => {

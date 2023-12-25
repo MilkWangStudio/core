@@ -462,6 +462,7 @@ export const localizationBundle = {
     'preference.terminal.integrated.localEchoStyleDesc': '本地回显文本的终端样式；字体样式或 RGB 颜色。',
     'preference.terminal.integrated.xtermRenderType': 'Xterm 渲染类型',
     'preference.terminal.integrated.xtermRenderTypeDesc': '选择 Xterm 渲染类型，WebGL 性能更强，Canvas 兼容性更佳。',
+    'preference.terminal.integrated.enablePersistentSessionDesc': '窗口重载时持久化终端会话',
     'preference.terminal.integrated.cursorStyle': '终端输入指针样式',
     'preference.terminal.integrated.cursorStyleDesc': '修改终端输入指针样式',
     'settings.group.general': '常规',
@@ -705,6 +706,7 @@ export const localizationBundle = {
     'terminal.focusFolder': '聚焦资源管理器中的文件夹',
     'terminal.openFolder': '在新窗口中打开文件夹',
     'terminal.toggleTerminal': '切换终端面板',
+    'terminal.killProcess': '结束进程',
 
     'view.command.show': '打开 {0}',
 

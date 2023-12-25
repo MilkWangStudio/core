@@ -9,7 +9,7 @@ const baseConfig = {
   resolver: '<rootDir>/tools/dev-tool/src/jest-resolver.js',
   coverageProvider: process.env.JEST_COVERAGE_PROVIDER || 'babel',
   // https://dev.to/vantanev/make-your-jest-tests-up-to-20-faster-by-changing-a-single-setting-i36
-  maxWorkers: '50%',
+  maxWorkers: 2,
   collectCoverageFrom: [
     'packages/*/src/**/*.ts',
     '!packages/**/*.contribution.ts',
@@ -85,7 +85,9 @@ module.exports = {
       testEnvironment: 'jsdom',
       testEnvironmentOptions: {
         html: `<html>
-        <div id="main"></div>
+        <body>
+          <div id="main"></div>
+        </body>
         </html>`,
         runScripts: 'dangerously',
         url: 'http://localhost/?id=1',

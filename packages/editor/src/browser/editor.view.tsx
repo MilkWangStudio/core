@@ -1,7 +1,7 @@
 import classnames from 'classnames';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
-import ReactDOM from 'react-dom';
+import ReactDOM from 'react-dom/client';
 import ReactIs from 'react-is';
 
 import { Scrollbars } from '@opensumi/ide-components';
@@ -25,7 +25,7 @@ import {
   ResizeHandleVertical,
 } from '@opensumi/ide-core-browser/lib/components';
 import { VIEW_CONTAINERS } from '@opensumi/ide-core-browser/lib/layout/view-id';
-import { useInjectable } from '@opensumi/ide-core-browser/lib/react-hooks';
+import { useInjectable, useUpdateOnEventBusEvent } from '@opensumi/ide-core-browser/lib/react-hooks';
 
 import { IResource, WorkbenchEditorService } from '../common';
 
@@ -45,6 +45,7 @@ import {
   IEditorComponent,
   CodeEditorDidVisibleEvent,
   EditorOpenType,
+  ResoucesOfActiveComponentChangedEvent,
 } from './types';
 import { EditorGroup, WorkbenchEditorServiceImpl } from './workbench-editor.service';
 
@@ -120,11 +121,10 @@ export const EditorGridView = ({ grid }: { grid: EditorGrid }) => {
         cachedGroupView[grid.editorGroup!.name] = div;
         div.style.height = '100%';
         editorGroupContainer.appendChild(div);
-        ReactDOM.render(
+        ReactDOM.createRoot(div).render(
           <ConfigProvider value={context}>
             <EditorGroupView group={grid.editorGroup! as EditorGroup} />
           </ConfigProvider>,
-          div,
         );
       }
     }
@@ -310,7 +310,8 @@ export const EditorGroupView = observer(({ group }: { group: EditorGroup }) => {
         >
           {EmptyEditorViewConfig && ReactIs.isValidElementType(EmptyEditorViewConfig.component) ? (
             <ErrorBoundary>
-              {React.createElement(EmptyEditorViewConfig.component, EmptyEditorViewConfig.initialProps)}
+              {EmptyEditorViewConfig.component &&
+                React.createElement(EmptyEditorViewConfig.component, EmptyEditorViewConfig.initialProps)}
             </ErrorBoundary>
           ) : null}
         </div>
@@ -444,6 +445,7 @@ export const EditorGroupBody = observer(({ group }: { group: EditorGroup }) => {
         }
       }}
     >
+      {group.currentResource && <EditorSideView side={'top'} resource={group.currentResource}></EditorSideView>}
       {!editorHasNoTab && <NavigationBar editorGroup={group} />}
       {group.currentResource && <EditorSideView side={'top'} resource={group.currentResource}></EditorSideView>}
       <div className={styles.kt_editor_components}>
@@ -490,19 +492,22 @@ export const ComponentsWrapper = ({
   component: IEditorComponent;
   resources: IResource[];
   current: MaybeNull<IResource>;
-}) => (
-  <div className={styles.kt_editor_component_wrapper}>
-    {resources.map((resource) => (
-      <ComponentWrapper
-        {...other}
-        key={resource.toString()}
-        component={component}
-        resource={resource}
-        hidden={!(current && current.uri.toString() === resource.uri.toString())}
-      />
-    ))}
-  </div>
-);
+}) => {
+  useUpdateOnEventBusEvent(ResoucesOfActiveComponentChangedEvent, [component], (t) => t.component === component);
+  return (
+    <div className={styles.kt_editor_component_wrapper}>
+      {resources.map((resource) => (
+        <ComponentWrapper
+          {...other}
+          key={resource.uri.toString()}
+          component={component}
+          resource={resource}
+          hidden={!(current && current.uri.toString() === resource.uri.toString())}
+        />
+      ))}
+    </div>
+  );
+};
 
 export const ComponentWrapper = ({ component, resource, hidden, ...other }) => {
   const componentService: EditorComponentRegistryImpl = useInjectable(EditorComponentRegistry);
@@ -520,11 +525,10 @@ export const ComponentWrapper = ({ component, resource, hidden, ...other }) => {
         div.style.height = '100%';
         componentService.perWorkbenchComponents[component.uid] = div;
         // 对于per_workbench的，resource默认为不会改变
-        ReactDOM.render(
+        ReactDOM.createRoot(div).render(
           <ConfigProvider value={context}>
             <component.component resource={resource} />
           </ConfigProvider>,
-          div,
         );
       }
       containerRef!.appendChild(componentService.perWorkbenchComponents[component.uid]);

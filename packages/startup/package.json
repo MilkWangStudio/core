@@ -1,6 +1,6 @@
 {
   "name": "@opensumi/ide-startup",
-  "version": "2.26.6",
+  "version": "2.27.1",
   "files": [
     "lib",
     "src"
@@ -113,13 +113,21 @@
     "@opensumi/ide-dev-tool": "workspace:*",
     "browserfs": "^1.4.3",
     "css-loader": "^2.1.1",
-    "electron": "^18.3.0",
+    "electron": "^22.3.21",
     "file-loader": "^3.0.1",
     "less-loader": "^6.0.0",
     "nodemon": "^2.0.15",
     "npm-run": "^5.0.1",
     "npm-run-all": "^4.1.5",
-    "react-dom": "^16.8.6",
+    "react-dom": "^18.0.0",
+    "serviceworker-webpack-plugin": "^1.0.1",
+    "style-loader": "^0.23.1",
+    "style-resources-loader": "^1.2.1",
+    "ts-loader": "^6.0.1",
+    "ts-node": "^10.0.0",
+    "tsconfig-paths": "^3.8.0",
+    "tsconfig-paths-webpack-plugin": "^3.2.0",
+    "webpack": "^4.39.3",
     "webpack-bundle-analyzer": "^3.8.0",
     "webpack-dev-server": "3.8.0"
   }

@@ -3,6 +3,7 @@ import paths from 'path';
 import ParcelWatcher from '@parcel/watcher';
 import fs from 'fs-extra';
 import debounce from 'lodash/debounce';
+import uniqBy from 'lodash/uniqBy';
 
 import { Injectable, Autowired, Optional } from '@opensumi/di';
 import {
@@ -19,9 +20,8 @@ import {
   parseGlob,
 } from '@opensumi/ide-core-node';
 
-import { FileChangeType, FileSystemWatcherClient, IFileSystemWatcherServer, INsfw, WatchOptions } from '../common';
-
-import { FileChangeCollection } from './file-change-collection';
+import { FileChangeType, FileSystemWatcherClient, IFileSystemWatcherServer, INsfw, WatchOptions } from '../../common';
+import { FileChangeCollection } from '../file-change-collection';
 
 export interface WatcherOptions {
   excludesPattern: ParsedPattern[];
@@ -94,6 +94,7 @@ export class FileSystemWatcherServer implements IFileSystemWatcherServer {
     if (watcherId) {
       return watcherId;
     }
+
     watcherId = FileSystemWatcherServer.WATCHER_SEQUENCE++;
     const toDisposeWatcher = new DisposableCollection();
     let watchPath;
@@ -166,7 +167,7 @@ export class FileSystemWatcherServer implements IFileSystemWatcherServer {
   protected trimChangeEvent(events: ParcelWatcher.Event[]): ParcelWatcher.Event[] {
     events = events.filter((event: ParcelWatcher.Event) => {
       if (event.path) {
-        if (/\.\d{7}\d+$/.test(event.path)) {
+        if (this.isTempFile(event.path)) {
           // write-file-atomic 源文件xxx.xx 对应的临时文件为 xxx.xx.22243434
           // 这类文件的更新应当完全隐藏掉
           return false;
@@ -176,6 +177,10 @@ export class FileSystemWatcherServer implements IFileSystemWatcherServer {
     });
 
     return events;
+  }
+
+  private isTempFile(path: string) {
+    return /\.\d{7}\d+$/.test(path);
   }
 
   private getDefaultWatchExclude() {
@@ -204,6 +209,7 @@ export class FileSystemWatcherServer implements IFileSystemWatcherServer {
                 return;
               }
               const handlers = this.WATCHER_HANDLERS.get(watcherId)?.handlers;
+
               if (!handlers) {
                 return;
               }
@@ -245,8 +251,6 @@ export class FileSystemWatcherServer implements IFileSystemWatcherServer {
         {
           errorCallback: (error: any) => {
             // see https://github.com/atom/github/issues/342
-            // eslint-disable-next-line no-console
-            console.warn(`Failed to watch "${basePath}":`, error);
             this.unwatchFileChanges(watcherId);
           },
         },
@@ -310,6 +314,10 @@ export class FileSystemWatcherServer implements IFileSystemWatcherServer {
   }
 
   private async handleNSFWEvents(events: INsfw.ChangeEvent[], watcherId: number): Promise<void> {
+    if (events.length > 5000) {
+      return;
+    }
+
     const isIgnored = (watcherId: number, path: string): boolean => {
       const options = this.watcherOptions.get(watcherId);
       if (!options || !options.excludes || options.excludes.length < 1) {
@@ -318,11 +326,26 @@ export class FileSystemWatcherServer implements IFileSystemWatcherServer {
       return options.excludesPattern.some((match) => match(path));
     };
 
-    if (events.length > 5000) {
-      return;
-    }
+    const filterEvents = events.filter((event) => {
+      // 如果是 RENAME，不会产生临时文件
+      if (event.action === INsfw.actions.RENAMED) {
+        return true;
+      }
 
-    for (const event of events) {
+      return !this.isTempFile(event.file!);
+    });
+    // 合并下事件，由于 resolvePath 耗时较久，这里只用当前事件路径及文件名去重，后续处理事件再获取真实路径
+    const mergedEvents = uniqBy(filterEvents, (event) => {
+      if (event.action === INsfw.actions.RENAMED) {
+        const deletedPath = paths.join(event.directory, event.oldFile!);
+        const newPath = paths.join(event.newDirectory || event.directory, event.newFile!);
+        return deletedPath + newPath;
+      }
+
+      return event.action + paths.join(event.directory, event.file!);
+    });
+
+    for (const event of mergedEvents) {
       if (event.action === INsfw.actions.RENAMED) {
         const deletedPath = this.resolvePath(event.directory, event.oldFile!);
         if (isIgnored(watcherId, deletedPath)) {

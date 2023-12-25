@@ -1,6 +1,6 @@
 {
   "name": "@opensumi/cli-engine",
-  "version": "2.26.6",
+  "version": "2.27.1",
   "description": "Integration engine runtime for opensumi-cli and opensumi extension",
   "license": "MIT",
   "files": [
@@ -24,7 +24,7 @@
     "watch:webview": "yarn run build:webview -- --watch"
   },
   "dependencies": {
-    "@koa/cors": "^3.0.0",
+    "@koa/cors": "^5.0.0",
     "@opensumi/di": "^1.8.0",
     "@opensumi/ide-core-browser": "workspace:*",
     "@opensumi/ide-core-common": "workspace:*",
@@ -35,7 +35,7 @@
     "@opensumi/ide-main-layout": "workspace:*",
     "@opensumi/ide-startup": "workspace:*",
     "chalk": "^4.0.0",
-    "ejs": "^2.7.4",
+    "ejs": "^3.1.7",
     "ip": "^1.1.8",
     "koa": "^2.7.0",
     "koa-mount": "^4.0.0",

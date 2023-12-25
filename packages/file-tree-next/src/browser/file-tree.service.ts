@@ -178,7 +178,7 @@ export class FileTreeService extends Tree implements IFileTreeService {
           roots[0],
           this.fileTreeAPI.getReadableTooltip(newRootUri),
         );
-        this._root = newRoot;
+        this.root = newRoot;
         this.onWorkspaceChangeEmitter.fire(newRoot);
         this.refresh();
       }),
@@ -192,6 +192,7 @@ export class FileTreeService extends Tree implements IFileTreeService {
 
     this.toDispose.push(
       Disposable.create(() => {
+        this._root?.dispose();
         this._roots = null;
       }),
     );
@@ -446,7 +447,7 @@ export class FileTreeService extends Tree implements IFileTreeService {
     }
   }
 
-  // 软链接目录下，文件节点路径不能通过uri去获取，存在偏差
+  // 软链接目录下，文件节点路径不能通过 uri 去获取，存在偏差
   public async moveNodeByPath(
     from: Directory,
     to: Directory,
@@ -459,8 +460,8 @@ export class FileTreeService extends Tree implements IFileTreeService {
     if (oldPath && newPath && newPath !== oldPath) {
       const movedNode = from.moveNode(oldPath, newPath);
       // 更新节点除了 name 以外的其他属性，如 fileStat，tooltip 等，否则节点数据可能会异常
-      if (movedNode) {
-        (movedNode as File).updateMetaData({
+      if (movedNode && File.is(movedNode)) {
+        movedNode.updateMetaData({
           uri: to.uri.resolve(newName),
           fileStat: {
             ...to.filestat,
@@ -469,8 +470,35 @@ export class FileTreeService extends Tree implements IFileTreeService {
           },
           tooltip: this.fileTreeAPI.getReadableTooltip(to.uri.resolve(newName)),
         });
+        if (Directory.is(movedNode)) {
+          this.updateChildren(movedNode);
+        }
       }
       return movedNode;
+    }
+  }
+
+  private async updateChildren(parent: Directory) {
+    const children = parent.children;
+    if (!children || children.length === 0) {
+      return;
+    }
+    for (const child of children) {
+      if (File.is(child)) {
+        const newUri = parent.uri.resolve(child.uri.displayName);
+        child.updateMetaData({
+          uri: newUri,
+          fileStat: {
+            ...child.filestat,
+            uri: newUri.toString(),
+            isDirectory: Directory.is(child) ? true : false,
+          },
+          tooltip: this.fileTreeAPI.getReadableTooltip(newUri),
+        });
+        if (Directory.is(child)) {
+          this.updateChildren(child);
+        }
+      }
     }
   }
 
@@ -516,7 +544,12 @@ export class FileTreeService extends Tree implements IFileTreeService {
     if (node && node.parent) {
       // 压缩节点情况下，刷新父节点目录即可
       if (this.isCompactMode && !notRefresh) {
-        this.refresh(node.parent as Directory);
+        if (node.parent.children?.length === 2) {
+          // 当存在两个子节点时，删除一个子节点后，需要刷新父节点
+          this.refresh(node.parent?.parent as Directory);
+        } else {
+          this.refresh(node.parent as Directory);
+        }
       } else {
         (node.parent as Directory).removeNode(node.path);
       }
@@ -527,8 +560,8 @@ export class FileTreeService extends Tree implements IFileTreeService {
     const nodes: File[] = [];
     for (const uri of uris) {
       const node = this.getNodeByPathOrUri(uri);
-      if (node) {
-        nodes.push(node as File);
+      if (node && File.is(node)) {
+        nodes.push(node);
       }
     }
     for (const node of nodes) {
@@ -660,12 +693,14 @@ export class FileTreeService extends Tree implements IFileTreeService {
   /**
    * 刷新指定下的所有子节点
    */
-  async refresh(node: Directory = this.root as Directory) {
+  async refresh(node: Directory | File = this.root as Directory) {
     if (!node) {
       return;
     }
-    if (!Directory.is(node) && node.parent) {
-      node = node.parent as Directory;
+    if (!Directory.is(node)) {
+      if (File.is(node) && node.parent) {
+        node = node.parent as Directory;
+      }
     }
 
     // 队列化刷新动作减少更新成本
@@ -801,7 +836,7 @@ export class FileTreeService extends Tree implements IFileTreeService {
   public toggleFilterMode() {
     this._filterMode = !this.filterMode;
     this.onFilterModeChangeEmitter.fire(this.filterMode);
-    this.fileContextKey.filesExplorerFilteredContext.set(this.filterMode);
+    this.fileContextKey?.filesExplorerFilteredContext.set(this.filterMode);
     // 清理掉输入值
     if (this.filterMode === false) {
       // 退出时若需要做 filter 值清理以及聚焦操作

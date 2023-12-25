@@ -1,5 +1,5 @@
 import fuzzy from 'fuzzy';
-import React, { useEffect, createRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { FixedSizeList, VariableSizeList, ListProps } from 'react-window';
 
 import {
@@ -19,7 +19,7 @@ import { NewPromptHandle } from './prompt/NewPromptHandle';
 import { TreeNode, CompositeTreeNode, spliceArray } from './tree';
 import { TreeModel } from './tree/model/TreeModel';
 import { INodeRendererProps, NodeRendererWrap, INodeRenderer } from './TreeNodeRendererWrap';
-import { TreeNodeType, TreeNodeEvent } from './types';
+import { TreeNodeType, TreeNodeEvent, ICompositeTreeNode } from './types';
 
 export type IRecycleTreeAlign = 'smart' | 'start' | 'center' | 'end' | 'auto';
 
@@ -36,6 +36,7 @@ export interface IRecycleTreeSize {
 }
 
 export interface IRecycleTreeProps<T = TreeModel> {
+  children(props: any): React.ReactNode;
   model: T;
   /**
    * 容器高度
@@ -787,6 +788,18 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
         fuzzyLists = fuzzy.filter(filter, nodes, RecycleTree.FILTER_FUZZY_OPTIONS);
       }
 
+      const showAllExpandedChild = (node: ICompositeTreeNode) => {
+        const children = node.children || [];
+        if (children.length > 0) {
+          for (const child of children) {
+            idSets.add(child.id);
+            if (CompositeTreeNode.is(child) && child.expanded) {
+              showAllExpandedChild(child);
+            }
+          }
+        }
+      };
+
       fuzzyLists.forEach((item) => {
         const node = (item as any).original as TreeNode;
         idSets.add(node.id);
@@ -802,7 +815,11 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
             dangerouslySetInnerHTML={{ __html: item.string || '' }}
           ></div>
         ));
-        // 不应包含根节点
+        if (CompositeTreeNode.is(node)) {
+          // 让筛选到的节点目录也展示其子节点
+          showAllExpandedChild(node);
+        }
+        // 当子节点被筛选时，向上的所有父节点均应该被展示
         while (parent && !CompositeTreeNode.isRoot(parent)) {
           idSets.add(parent.id);
           parent = parent.parent;
@@ -866,7 +883,37 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
   private renderItem = ({ index, style }): JSX.Element => {
     const { children, overflow = 'ellipsis', supportDynamicHeights } = this.props;
     const node = this.getItemAtIndex(index) as IFilterNodeRendererProps;
-    const wrapRef = createRef<HTMLDivElement>();
+    const wrapRef = useRef<HTMLDivElement | null>(null);
+
+    const setSize = useMemo(
+      () =>
+        supportDynamicHeights
+          ? () => {
+              let size = 0;
+              if (wrapRef.current) {
+                const ref = wrapRef.current;
+                size = Array.from(ref.children).reduce(
+                  (pre, cur: HTMLElement) => pre + cur.getBoundingClientRect().height,
+                  0,
+                );
+              }
+              if (size) {
+                this.dynamicSizeMap.set(index, size);
+                this.layoutItem();
+              }
+
+              return Math.max(size, RecycleTree.DEFAULT_ITEM_HEIGHT);
+            }
+          : () => {},
+      [supportDynamicHeights],
+    );
+
+    useEffect(() => {
+      if (wrapRef.current) {
+        setSize();
+      }
+    }, []);
+
     if (!node) {
       return <></>;
     }
@@ -893,35 +940,6 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
         'aria-posinset': index,
       };
     }
-
-    useEffect(() => {
-      if (wrapRef.current) {
-        setSize();
-      }
-    }, []);
-
-    const setSize = useMemo(
-      () =>
-        supportDynamicHeights
-          ? () => {
-              let size = 0;
-              if (wrapRef.current) {
-                const ref = wrapRef.current;
-                size = Array.from(ref.children).reduce(
-                  (pre, cur: HTMLElement) => pre + cur.getBoundingClientRect().height,
-                  0,
-                );
-              }
-              if (size) {
-                this.dynamicSizeMap.set(index, size);
-                this.layoutItem();
-              }
-
-              return Math.max(size, RecycleTree.DEFAULT_ITEM_HEIGHT);
-            }
-          : () => {},
-      [supportDynamicHeights],
-    );
 
     const itemStyle = overflow === 'ellipsis' ? style : { ...style, width: 'auto', minWidth: '100%' };
 
